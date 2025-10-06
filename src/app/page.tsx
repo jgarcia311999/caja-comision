@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import { useCajaStore } from "@/store/cajaStore";
 import { ingresosMock, gastosMock } from "@/data/mockData";
 import { v4 as uuidv4 } from "uuid";
@@ -17,7 +18,73 @@ import {
   Cell,
   LineChart,
   Line,
+  AreaChart,
+  Area,
 } from "recharts";
+
+// MovimientosRecientes component moved out of the Home component function
+type Movimiento = {
+  id?: string;
+  fecha: string;
+  importe: number;
+  tipo: "ingreso" | "gasto";
+  descripcion: string;
+};
+type MovimientosRecientesProps = {
+  movimientos: Movimiento[];
+  totalDeudas: number;
+};
+function MovimientosRecientes({ movimientos, totalDeudas }: MovimientosRecientesProps) {
+  const [showAllMovimientos, setShowAllMovimientos] = React.useState(false);
+  function formatFecha(fecha: string): string {
+    const d = new Date(fecha);
+    const day = d.getDate().toString().padStart(2, "0");
+    const month = (d.getMonth() + 1).toString().padStart(2, "0");
+    return `${day}/${month}`;
+  }
+  return (
+    <div className="w-full bg-white rounded-2xl shadow p-6 mb-6 flex flex-col">
+      <div className="flex items-center mb-4">
+        <h2
+          className="text-lg font-semibold text-gray-900 mr-2 cursor-pointer select-none"
+          onClick={() => setShowAllMovimientos((prev) => !prev)}
+          title="Mostrar/ocultar todos los movimientos"
+          style={{ userSelect: "none" }}
+        >
+          {`Movimientos recientes`}
+          <span className="ml-2 text-xs align-middle">
+            {showAllMovimientos ? "▲" : "▼"}
+          </span>
+        </h2>
+        <span className="ml-2 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-xs font-semibold">
+          {`Deudas: ${totalDeudas.toFixed(2)}`}
+        </span>
+      </div>
+      <ul className="min-w-0">
+        {(showAllMovimientos ? movimientos : movimientos.slice(0, 5)).map((m, i) => (
+          <li
+            key={m.id || i}
+            className="flex justify-between items-center border-b last:border-b-0 py-2"
+          >
+            <span className="text-base sm:text-lg text-gray-800">
+              {m.descripcion}{" "}
+              <span className="text-gray-500 text-sm">({formatFecha(m.fecha)})</span>
+            </span>
+            <span
+              className={
+                m.tipo === "ingreso"
+                  ? "text-green-600 font-bold"
+                  : "text-red-600 font-bold"
+              }
+            >
+              {m.importe.toFixed(2)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export default function Home() {
   const ingresos = useCajaStore((state) => state.ingresos);
@@ -120,6 +187,9 @@ export default function Home() {
     return `${day}/${month}`;
   }
 
+  // Move visionTab state to top-level of Home component
+  const [visionTab, setVisionTab] = React.useState<"evolucion" | "comparativa">("evolucion");
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 pb-20 flex flex-col items-center w-full">
       {/* Header */}
@@ -128,9 +198,33 @@ export default function Home() {
       </header> */}
 
       {/* Balance Card */}
-      <div className="w-full rounded-lg shadow p-4 mb-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex flex-col items-center">
-        <p className="text-xl sm:text-lg font-semibold">Balance actual</p>
-        <p className="text-6xl sm:text-5xl font-extrabold mt-2">{beneficio.toFixed(2)}</p>
+      <div
+        className="w-full rounded-2xl shadow p-8 mt-8 mb-4 text-gray-900 flex flex-col justify-between min-h-[260px] relative"
+        style={{ background: 'linear-gradient(to right, #E4FF3C, #D7F12C)' }}
+      >
+        <div className="flex justify-between items-start w-full mb-4">
+          <p className="text-lg sm:text-xl font-semibold">Vuestro balance!</p>
+        </div>
+        <div className="flex-1 flex flex-row justify-between items-center w-full">
+          <span className="text-5xl sm:text-6xl font-extrabold text-left">${beneficio.toFixed(2)}</span>
+          <Image
+            src="/money-euro-svgrepo-com.svg"
+            width={40}
+            height={40}
+            alt="Menu"
+            style={{ marginLeft: "auto" }}
+          />
+        </div>
+        <div className="flex justify-between items-end mt-8 space-x-4 w-full">
+          <div className="flex flex-col items-start">
+            <span className="text-sm text-gray-600">Profit</span>
+            <span className="text-green-700 font-bold text-lg">+{totalIngresos.toFixed(2)}</span>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-sm text-gray-600">Spend</span>
+            <span className="text-red-600 font-bold text-lg">-{totalGastos.toFixed(2)}</span>
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -204,19 +298,25 @@ export default function Home() {
         </div>
       )}
 
-      {/* BarChart Card */}
-      <div className="w-full bg-white rounded-lg shadow p-4 mb-6 overflow-x-auto">
+      {/* --- Visión general - Alternativas --- */}
+      {/* Section A: Resumen por periodo (BarChart, dummy aggregated by semana/mes) */}
+      <div className="w-full bg-white rounded-2xl shadow p-6 mb-6 flex flex-col">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Ingresos vs Gastos
+          Visión general - Resumen por periodo
         </h2>
-        <div className="w-full h-80 sm:h-64 min-w-0">
+        <div className="w-full h-72 min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
-              data={data}
+              data={[
+                { periodo: "Semana 1", ingresos: 500, gastos: 350 },
+                { periodo: "Semana 2", ingresos: 600, gastos: 400 },
+                { periodo: "Semana 3", ingresos: 550, gastos: 300 },
+                { periodo: "Semana 4", ingresos: 700, gastos: 500 },
+              ]}
               margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
             >
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="fecha" tickFormatter={formatFecha} />
+              <XAxis dataKey="periodo" />
               <YAxis />
               <Tooltip />
               <Legend />
@@ -227,140 +327,70 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Quick Summary Card */}
-      <div className="w-full bg-white rounded-lg shadow p-4 flex flex-col sm:flex-row justify-around text-center space-y-4 sm:space-y-0">
-        <div>
-          <p className="text-green-600 font-semibold text-base sm:text-lg">Ingresos</p>
-          <p className="text-2xl font-bold text-green-700">
-            {totalIngresos.toFixed(2)}
-          </p>
-        </div>
-        <div>
-          <p className="text-red-600 font-semibold text-base sm:text-lg">Gastos</p>
-          <p className="text-2xl font-bold text-red-700">
-            {totalGastos.toFixed(2)}
-          </p>
-        </div>
-        <div>
-          <p className="text-gray-900 font-semibold text-base sm:text-lg">Beneficio</p>
-          <p className="text-2xl font-bold text-gray-900">
-            {beneficio.toFixed(2)}
-          </p>
-        </div>
-      </div>
 
-      {/* Top Gastos por Categoría */}
-      <div className="w-full bg-white rounded-lg shadow p-4 mt-6 mb-6">
+      {/* Section C: Gráfico filtrado (mes actual) */}
+      <div className="w-full bg-white rounded-2xl shadow p-6 mb-6 flex flex-col">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Top Gastos por Categoría
+          Visión general - Gráfico filtrado (mes actual)
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { cat: "Proveedores", bg: "bg-blue-100", text: "text-blue-800" },
-            { cat: "Hielo", bg: "bg-cyan-100", text: "text-cyan-800" },
-            { cat: "Limpieza", bg: "bg-green-100", text: "text-green-800" },
-            {
-              cat: "Uno de nosotros",
-              bg: "bg-pink-100",
-              text: "text-pink-800",
-            },
-          ].map(({ cat, bg, text }) => {
-            const total = filteredGastos
-              .filter((g) => g.categoria === cat)
-              .reduce((acc, g) => acc + g.importe, 0);
-            return (
-              <div
-                key={cat}
-                className={`${bg} rounded-lg p-4 flex flex-col items-center`}
-              >
-                <p className={`font-semibold text-base sm:text-lg ${text}`}>{cat}</p>
-                <p className={`text-xl sm:text-2xl font-bold mt-2 ${text}`}>
-                  {total.toFixed(2)}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Deudas pendientes */}
-      <div className="w-full rounded-lg shadow p-4 mb-6 bg-yellow-100 flex flex-col items-center">
-        <h2 className="text-lg font-semibold text-yellow-800 mb-2">
-          Deudas pendientes
-        </h2>
-        {(() => {
-          const deudas = filteredGastos.filter(
-            (g) => g.categoria === "Uno de nosotros" && !g.pagado
-          );
-          const totalDeudas = deudas.reduce((acc, g) => acc + g.importe, 0);
-          return (
-            <p className="text-3xl font-bold text-yellow-700">
-              {totalDeudas.toFixed(2)}
-            </p>
-          );
-        })()}
-      </div>
-
-      {/* Movimientos recientes */}
-      <div className="w-full bg-white rounded-lg shadow p-4 mb-6 overflow-x-auto">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Movimientos recientes
-        </h2>
-        <ul className="min-w-0">
-          {(() => {
-            // Combine ingresos and gastos, add type
-            const movimientos = [
-              ...filteredIngresos.map((i) => ({
-                ...i,
-                tipo: "ingreso",
-                fecha: i.fecha,
-                importe: i.habiaCambio
-                  ? i.importe - (i.cambioInicial || 0)
-                  : i.importe,
-                descripcion: "Ingreso",
-              })),
-              ...filteredGastos.map((g) => ({
-                ...g,
-                tipo: "gasto",
-                fecha: g.fecha,
-                importe: g.importe,
-                descripcion: g.descripcion || g.categoria || "Gasto",
-              })),
-            ];
-            movimientos.sort((a, b) => {
-              // Sort by fecha desc, fallback to id
-              if (a.fecha > b.fecha) return -1;
-              if (a.fecha < b.fecha) return 1;
-              return 0;
-            });
-            return movimientos.slice(0, 5).map((m, i) => (
-              <li
-                key={m.id || i}
-                className="flex justify-between items-center border-b last:border-b-0 py-2"
-              >
-                <span className="text-base sm:text-lg text-gray-800">
-                  {m.descripcion}{" "}
-                  <span className="text-gray-500 text-sm">({formatFecha(m.fecha)})</span>
-                </span>
-                <span
-                  className={
-                    m.tipo === "ingreso"
-                      ? "text-green-600 font-bold"
-                      : "text-red-600 font-bold"
+        <div className="w-full min-w-0" style={{ height: 300 }}>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart
+              data={
+                (() => {
+                  // Use filteredIngresos and filteredGastos for current month
+                  const now = new Date();
+                  const year = now.getFullYear();
+                  const month = now.getMonth();
+                  function isCurrentMonth(fecha: string) {
+                    const d = new Date(fecha);
+                    return d.getFullYear() === year && d.getMonth() === month;
                   }
-                >
-                  {m.importe.toFixed(2)}
-                </span>
-              </li>
-            ));
-          })()}
-        </ul>
+                  const ingresosMes = filteredIngresos.filter((i) => isCurrentMonth(i.fecha));
+                  const gastosMes = filteredGastos.filter((g) => isCurrentMonth(g.fecha));
+                  const fechasSet = new Set<string>();
+                  ingresosMes.forEach((i) => fechasSet.add(i.fecha));
+                  gastosMes.forEach((g) => fechasSet.add(g.fecha));
+                  const fechas = Array.from(fechasSet).sort();
+                  return fechas.map((fecha) => {
+                    const ingresoSum = ingresosMes
+                      .filter((i) => i.fecha === fecha)
+                      .reduce((acc, i) => {
+                        if (i.habiaCambio) {
+                          return acc + i.importe - (i.cambioInicial || 0);
+                        }
+                        return acc + i.importe;
+                      }, 0);
+                    const gastoSum = gastosMes
+                      .filter((g) => g.fecha === fecha && !g.pagado)
+                      .reduce((acc, g) => acc + g.importe, 0);
+                    return {
+                      fecha,
+                      ingresos: ingresoSum,
+                      gastos: gastoSum,
+                    };
+                  });
+                })()
+              }
+              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="fecha" tickFormatter={formatFecha} />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Area type="monotone" dataKey="ingresos" stroke="#00C49F" fill="#E5FFF6" name="Ingresos" />
+              <Area type="monotone" dataKey="gastos" stroke="#FF4C4C" fill="#FFE5E5" name="Gastos" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
-      {/* Distribución de Gastos por Categoría */}
-      <div className="w-full bg-white rounded-lg shadow p-4 mb-6 overflow-x-auto">
+
+      {/* --- Categorías de gasto Card --- */}
+      <div className="w-full bg-white rounded-2xl shadow p-6 mb-6 flex flex-col">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Distribución de Gastos por Categoría
+          Categorías de gasto
         </h2>
         <div className="w-full h-80 sm:h-64 min-w-0">
           <ResponsiveContainer width="100%" height="100%">
@@ -386,44 +416,85 @@ export default function Home() {
             </PieChart>
           </ResponsiveContainer>
         </div>
-      </div>
-
-      {/* Evolución Ingresos vs Gastos */}
-      <div className="w-full bg-white rounded-lg shadow p-4 mb-6 overflow-x-auto">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Evolución Ingresos vs Gastos
-        </h2>
-        <div className="w-full h-80 sm:h-64 min-w-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={data}
-              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="fecha" tickFormatter={formatFecha} />
-              <YAxis domain={[0, "dataMax + 50"]} />
-              <Tooltip />
-              <Legend />
-              <Line
-                type="monotone"
-                dataKey="ingresos"
-                stroke="#00C49F"
-                strokeWidth={2}
-                dot={false}
-                name="Ingresos"
-              />
-              <Line
-                type="monotone"
-                dataKey="gastos"
-                stroke="#FF4C4C"
-                strokeWidth={2}
-                dot={false}
-                name="Gastos"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        {/* Total de gastos */}
+        <div className="mt-4 flex justify-center">
+          <span className="text-base font-semibold text-gray-700">
+            Total gastos: {filteredGastos.reduce((acc, gasto) => acc + gasto.importe, 0).toFixed(2)}
+          </span>
         </div>
       </div>
-    </div>
-  );
-}
+
+      {/* --- Cosas por pagar Card --- */}
+      <div className="w-full bg-white rounded-2xl shadow p-6 mb-6 flex flex-col">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          Cosas por pagar
+        </h2>
+        {(() => {
+          const cosasPorPagar = filteredGastos.filter(
+            (g) => g.categoria === "Uno de nosotros" && !g.pagado
+          );
+          if (cosasPorPagar.length === 0) {
+            return <div className="text-gray-500">No hay cosas pendientes de pagar.</div>;
+          }
+          return (
+            <ul className="min-w-0">
+              {cosasPorPagar.map((g, i) => (
+                <li
+                  key={g.id || i}
+                  className="flex justify-between items-center border-b last:border-b-0 py-2"
+                >
+                  <span className="text-base text-gray-800">
+                    {g.descripcion || g.nombrePersona || "Sin descripción"}
+                    <span className="text-gray-500 text-sm ml-2">({formatFecha(g.fecha)})</span>
+                  </span>
+                  <span className="text-red-600 font-bold">{g.importe.toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
+          );
+        })()}
+      </div>
+
+      {/* --- Movimientos recientes Card --- */}
+      {(() => {
+        // Calculate total deudas for badge
+        const deudas = filteredGastos.filter(
+          (g) => g.categoria === "Uno de nosotros" && !g.pagado
+        );
+        const totalDeudas = deudas.reduce((acc, g) => acc + g.importe, 0);
+        // Combine ingresos and gastos, add type
+        const movimientos = [
+          ...filteredIngresos.map((i) => ({
+            ...i,
+            tipo: "ingreso" as const,
+            fecha: i.fecha,
+            importe: i.habiaCambio
+              ? i.importe - (i.cambioInicial || 0)
+              : i.importe,
+            descripcion: "Ingreso",
+          })),
+          ...filteredGastos.map((g) => ({
+            ...g,
+            tipo: "gasto" as const,
+            fecha: g.fecha,
+            importe: g.importe,
+            descripcion: g.descripcion || g.categoria || "Gasto",
+          })),
+        ];
+        movimientos.sort((a, b) => {
+          // Sort by fecha desc, fallback to id
+          if (a.fecha > b.fecha) return -1;
+          if (a.fecha < b.fecha) return 1;
+          return 0;
+        });
+        return (
+          <MovimientosRecientes
+            movimientos={movimientos}
+            totalDeudas={totalDeudas}
+          />
+        );
+
+      })()}
+    </div>   
+  );         
+}           
