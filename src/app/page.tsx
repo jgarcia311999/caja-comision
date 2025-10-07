@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-var-requires */
 "use client";
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
@@ -22,6 +23,8 @@ import {
   Area,
   Treemap,
 } from "recharts";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 
 // MovimientosRecientes component moved out of the Home component function
 type Movimiento = {
@@ -206,6 +209,10 @@ export default function Home() {
   // Move visionTab state to top-level of Home component
   const [visionTab, setVisionTab] = React.useState<"evolucion" | "comparativa">("evolucion");
 
+  // Collapsible state for Pago entre nosotros and Cosas por pagar
+  const [showAllPagoNosotros, setShowAllPagoNosotros] = useState(false);
+  const [showAllCosas, setShowAllCosas] = useState(false);
+
   // Prepare data for Gasto por persona (Uno de nosotros)
   const gastosUnoDeNosotros = filteredGastos.filter(g => g.categoria === "Uno de nosotros");
   const gastosPorPersonaMap = gastosUnoDeNosotros.reduce((acc, gasto) => {
@@ -220,6 +227,23 @@ export default function Home() {
     })
   );
   const totalGastoUnoDeNosotros = gastosUnoDeNosotros.reduce((acc, gasto) => acc + gasto.importe, 0);
+
+  // --- Exportar Excel ---
+  const handleExportExcel = () => {
+    const wb = XLSX.utils.book_new();
+
+    // Ingresos
+    const ingresosWS = XLSX.utils.json_to_sheet(ingresos);
+    XLSX.utils.book_append_sheet(wb, ingresosWS, "Ingresos");
+
+    // Gastos
+    const gastosWS = XLSX.utils.json_to_sheet(gastos);
+    XLSX.utils.book_append_sheet(wb, gastosWS, "Gastos");
+
+    // Exportar
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    saveAs(new Blob([wbout], { type: "application/octet-stream" }), "caja-comision.xlsx");
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 pb-20 flex flex-col items-center w-full">
@@ -259,6 +283,17 @@ export default function Home() {
             <span className="text-red-600 font-bold text-lg">-{totalGastos.toFixed(2)}</span>
           </div>
         </div>
+      </div>
+      <div className="w-full flex justify-end mb-6">
+        <button
+          onClick={handleExportExcel}
+          className="w-12 h-12 flex items-center justify-center bg-green-600 text-white rounded-full shadow hover:bg-green-700"
+          title="Descargar Excel"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
       </div>
 
 
@@ -323,61 +358,112 @@ export default function Home() {
       </div>
 
       {/* --- Gasto por persona (Uno de nosotros) Card --- */}
-      <div className="w-full bg-white rounded-2xl shadow p-6 mb-6 flex flex-col">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Gasto por persona (Uno de nosotros)
-        </h2>
-        <div className="w-full flex justify-center">
-          <ul className="w-full">
-            {gastosPorPersona.map((g, i) => (
-              <li
-                key={i}
-                className="flex justify-between items-center border-b last:border-b-0 py-2"
-              >
-                <span className="text-base text-gray-800">{g.persona}</span>
-                <span className="text-red-600 font-bold">{g.importe.toFixed(2)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        {/* Total gasto Uno de nosotros */}
-        <div className="mt-4 flex justify-center">
-          <span className="text-base font-semibold text-gray-700">
-            Total gasto: {totalGastoUnoDeNosotros.toFixed(2)}
-          </span>
-        </div>
-      </div>
+      {/* Collapsible: Pago entre nosotros */}
+      {
+        (() => {
+          // Sort: estado PENDIENTE first, then fecha desc
+          const sortedGastos = gastosUnoDeNosotros
+            .slice()
+            .sort((a, b) => {
+              if (a.estado === "PENDIENTE" && b.estado === "PAGADO") return -1;
+              if (a.estado === "PAGADO" && b.estado === "PENDIENTE") return 1;
+              if (a.fecha > b.fecha) return -1;
+              if (a.fecha < b.fecha) return 1;
+              return 0;
+            });
+          const visibleGastos = showAllPagoNosotros ? sortedGastos : sortedGastos.slice(0, 5);
+          return (
+            <div className="w-full bg-white rounded-2xl shadow p-6 mb-6 flex flex-col">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Pago entre nosotros
+              </h2>
+              <div className="w-full flex justify-center">
+                <ul className="w-full">
+                  {visibleGastos.map((g, i) => (
+                    <li
+                      key={g.id || i}
+                      className="flex justify-between items-center border-b last:border-b-0 py-2"
+                    >
+                      <span className="text-base text-gray-800">{g.nombrePersona || "Sin nombre"}</span>
+                      <span
+                        className={`font-bold ${g.estado === "PENDIENTE" ? "text-red-600" : "text-gray-500 line-through"}`}
+                      >
+                        {g.importe.toFixed(2)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {/* Toggle button if more than 5 */}
+              {sortedGastos.length > 5 && (
+                <button
+                  onClick={() => setShowAllPagoNosotros((prev) => !prev)}
+                  className="text-xs text-blue-600 mt-2"
+                >
+                  {showAllPagoNosotros ? "Ver menos" : "Ver más"}
+                </button>
+              )}
+              {/* Total gasto Uno de nosotros */}
+              <div className="mt-4 flex justify-center">
+                <span className="text-base font-semibold text-gray-700">
+                  Total gasto: {totalGastoUnoDeNosotros.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          );
+        })()
+      }
 
       {/* --- Cosas por pagar Card --- */}
-      <div className="w-full bg-white rounded-2xl shadow p-6 mb-6 flex flex-col">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Cosas por pagar
-        </h2>
-        {(() => {
-          const cosasPorPagar = filteredGastos.filter(
+      {
+        (() => {
+          let cosasPorPagar = filteredGastos.filter(
             (g) => g.categoria === "Uno de nosotros" && g.estado === "PENDIENTE"
           );
-          if (cosasPorPagar.length === 0) {
-            return <div className="text-gray-500">No hay cosas pendientes de pagar.</div>;
-          }
+          // Sort cosasPorPagar by fecha descending
+          cosasPorPagar = cosasPorPagar.slice().sort((a, b) => {
+            if (a.fecha > b.fecha) return -1;
+            if (a.fecha < b.fecha) return 1;
+            return 0;
+          });
+          const visibleCosas = showAllCosas ? cosasPorPagar : cosasPorPagar.slice(0, 5);
           return (
-            <ul className="min-w-0">
-              {cosasPorPagar.map((g, i) => (
-                <li
-                  key={g.id || i}
-                  className="flex justify-between items-center border-b last:border-b-0 py-2"
-                >
-                  <span className="text-base text-gray-800">
-                    {g.descripcion || g.nombrePersona || "Sin descripción"}
-                    <span className="text-gray-500 text-sm ml-2">({formatFecha(g.fecha)})</span>
-                  </span>
-                  <span className="text-red-600 font-bold">{g.importe.toFixed(2)}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="w-full bg-white rounded-2xl shadow p-6 mb-6 flex flex-col">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Cosas por pagar
+              </h2>
+              {cosasPorPagar.length === 0 ? (
+                <div className="text-gray-500">No hay cosas pendientes de pagar.</div>
+              ) : (
+                <>
+                  <ul className="min-w-0">
+                    {visibleCosas.map((g, i) => (
+                      <li
+                        key={g.id || i}
+                        className="flex justify-between items-center border-b last:border-b-0 py-2"
+                      >
+                        <span className="text-base text-gray-800">
+                          {g.descripcion || g.nombrePersona || "Sin descripción"}
+                          <span className="text-gray-500 text-sm ml-2">({formatFecha(g.fecha)})</span>
+                        </span>
+                        <span className="text-red-600 font-bold">{g.importe.toFixed(2)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {cosasPorPagar.length > 5 && (
+                    <button
+                      onClick={() => setShowAllCosas((prev) => !prev)}
+                      className="text-xs text-blue-600 mt-2"
+                    >
+                      {showAllCosas ? "Ver menos" : "Ver más"}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           );
-        })()}
-      </div>
+        })()
+      }
 
       {/* --- Movimientos recientes Card --- */}
       {(() => {
@@ -407,8 +493,8 @@ export default function Home() {
             descripcion: g.descripcion || g.categoria || "Gasto",
           })),
         ];
+        // Ensure movimientos sorted by fecha desc
         movimientos.sort((a, b) => {
-          // Sort by fecha desc, fallback to id
           if (a.fecha > b.fecha) return -1;
           if (a.fecha < b.fecha) return 1;
           return 0;
@@ -419,7 +505,6 @@ export default function Home() {
             totalDeudas={totalDeudas}
           />
         );
-
       })()}
     </div>   
   );         
