@@ -3,8 +3,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Caja Comision",
-  description: "App de control de caja para la barra",
+  title: "Comision",
+  description: "No lo se",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -14,19 +14,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="flex-1 pb-16">{children}</main>
         
         {/* Barra inferior fija */}
-        <nav className="fixed bottom-0 left-0 w-full bg-white dark:bg-gray-800 border-t border-gray-300 dark:border-gray-700 flex justify-around py-2">
-          <Link href="/" className="flex flex-col items-center text-sm">
-            <span>📊</span>
-            <span>Dashboard</span>
-          </Link>
-          <Link href="/ingresos" className="flex flex-col items-center text-sm">
-            <span>➕</span>
-            <span>Ingresos</span>
-          </Link>
-          <Link href="/gastos" className="flex flex-col items-center text-sm">
-            <span>➖</span>
-            <span>Gastos</span>
-          </Link>
+        <nav className="fixed bottom-0 left-0 w-full flex justify-center py-4">
+          <div className="flex bg-black text-white rounded-full px-6 py-2 space-x-8">
+            <Link href="/ingresos" className="flex items-center justify-center text-sm">
+              <span>➕</span>
+            </Link>
+            <Link href="/" className="flex items-center justify-center text-sm">
+              <span>📊</span>
+            </Link>
+            <Link href="/gastos" className="flex items-center justify-center text-sm">
+              <span>➖</span>
+            </Link>
+          </div>
         </nav>
       </body>
     </html>
